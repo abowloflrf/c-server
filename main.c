@@ -93,9 +93,7 @@ int main(int argc, char *argv[])
 void http_send(int sock_client, struct http_req_hdr *req_hdr)
 {
     log_request(req_hdr);
-    char content_buffer[BUFF_SIZE];
-    size_t len = response_handler(content_buffer, req_hdr);
-    send(sock_client, content_buffer, len, 0);
+    response_handler(sock_client, req_hdr);
 }
 
 void handle_signal(int sign)
