@@ -1,3 +1,3 @@
 project(c-server)
 
-add_executable(server main.c)
+add_executable(server main.c request.c)

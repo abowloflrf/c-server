@@ -11,9 +11,11 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#include "request.h"
+
 #define SERV "0.0.0.0"
 #define QUEUE 20
-#define BUFF_SIZE 1024
+#define BUFF_SIZE 8192
 
 
 typedef struct doc_type
@@ -38,14 +40,14 @@ char *http_res_tmpl = "HTTP/1.1 200 OK\r\n"
                       "Content-Type: %s\r\n\r\n";
 
 void handle_signal(int sign); // 退出信号处理
-void http_send(int sock_client, char *content); // http 发送相应报文
+void http_send(int, struct http_req_hdr *); // http 发送相应报文
 
 int main(int argc, char *argv[])
 {
     //TODO: 从config file中读取配置
-    int port = 8888;
+    uint16_t port = 8888;
     if (argc > 1) {
-        port = atoi(argv[1]);//TODO: uint16
+        port = (uint16_t) atoi(argv[1]);//TODO: uint16
     }
 
     signal(SIGINT, handle_signal);  //处理中断退出信号
@@ -85,19 +87,21 @@ int main(int argc, char *argv[])
         }
         memset(buff, 0, sizeof(buff));
         int len = (int) recv(sock_client, buff, sizeof(buff), 0);
-        fputs(buff, stdout);
+        struct http_req_hdr *req_hdr = request_handler(buff, len);
         //send(sock_client,buff,len,0);
-        //TODO: 实现HTTP request parser来响应不同的请求，这里只写入了固定的响应
-        http_send(sock_client, "<h1>Hello World!</h1>\n<p>have fun</p>");//发送HTTP response
+        //TODO: 实现HTTP request parser来响应不同的请求
+        http_send(sock_client, req_hdr);//发送HTTP response
         close(sock_client);//response发送完毕，关闭客户端连接
     }
 }
 
-void http_send(int sock_client, char *content)
+void http_send(int sock_client, struct http_req_hdr *hdr)
 {
     char HTTP_HEADER[BUFF_SIZE], HTTP_INFO[BUFF_SIZE];
+    char content[BUFF_SIZE];
+    sprintf(content, "<h1>You are visiting: %s</h1><p>have fun</p>", hdr->uri);//这里返回URL给客户端
     size_t len = strlen(content);
-    sprintf(HTTP_HEADER, http_res_tmpl, len, "text/html");
+    sprintf(HTTP_HEADER, http_res_tmpl, len, strsep(&(hdr->accept_type), ","));
     len = (size_t) sprintf(HTTP_INFO, "%s%s", HTTP_HEADER, content);
     send(sock_client, HTTP_INFO, len, 0);
 }
@@ -105,6 +109,6 @@ void http_send(int sock_client, char *content)
 void handle_signal(int sign)
 {
     fprintf(stdout, "\nRecieved signal: %d\nBye~\n", sign);
-    close(sockfd);
+    shutdown(sockfd, SHUT_RDWR);
     exit(0);
 }
