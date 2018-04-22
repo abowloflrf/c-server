@@ -12,6 +12,8 @@
 #include <signal.h>
 
 #include "request.h"
+#include "response.h"
+#include "log.h"
 
 #define SERV "0.0.0.0"
 #define QUEUE 20
@@ -31,13 +33,6 @@ HTTP_CONTENT_TYPE http_content_type[] = {
 };
 
 int sockfd;
-
-char *http_res_tmpl = "HTTP/1.1 200 OK\r\n"
-                      "Server: ruofeng's Server V1.0\r\n"
-                      "Accept-Ranges: bytes\r\n"
-                      "Content-Length: %d\r\n"
-                      "Connection: close\r\n"
-                      "Content-Type: %s\r\n\r\n";
 
 void handle_signal(int sign); // 退出信号处理
 void http_send(int, struct http_req_hdr *); // http 发送相应报文
@@ -87,23 +82,20 @@ int main(int argc, char *argv[])
         }
         memset(buff, 0, sizeof(buff));
         int len = (int) recv(sock_client, buff, sizeof(buff), 0);
+        //request_handler解析请求头部并返回一个简单的请求结构体
         struct http_req_hdr *req_hdr = request_handler(buff, len);
-        //send(sock_client,buff,len,0);
         //TODO: 实现HTTP request parser来响应不同的请求
         http_send(sock_client, req_hdr);//发送HTTP response
         close(sock_client);//response发送完毕，关闭客户端连接
     }
 }
 
-void http_send(int sock_client, struct http_req_hdr *hdr)
+void http_send(int sock_client, struct http_req_hdr *req_hdr)
 {
-    char HTTP_HEADER[BUFF_SIZE], HTTP_INFO[BUFF_SIZE];
-    char content[BUFF_SIZE];
-    sprintf(content, "<h1>You are visiting: %s</h1><p>have fun</p>", hdr->uri);//这里返回URL给客户端
-    size_t len = strlen(content);
-    sprintf(HTTP_HEADER, http_res_tmpl, len, strsep(&(hdr->accept_type), ","));
-    len = (size_t) sprintf(HTTP_INFO, "%s%s", HTTP_HEADER, content);
-    send(sock_client, HTTP_INFO, len, 0);
+    log_request(req_hdr);
+    char content_buffer[BUFF_SIZE];
+    size_t len = response_handler(content_buffer, req_hdr);
+    send(sock_client, content_buffer, len, 0);
 }
 
 void handle_signal(int sign)

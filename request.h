@@ -10,11 +10,6 @@
 #define HTTP_METHOD_HEAD            0x0004
 #define HTTP_METHOD_POST            0x0008
 
-#define HTTP_STATUS_OK              200
-#define HTTP_STATUS_NOT_MODIFIED    304
-#define HTTP_STATUS_NOT_FOUND       404
-
-#define MAX_BUFF 8192
 
 struct http_req_hdr
 {
