@@ -16,10 +16,12 @@
 #define HEADER_BUFF_SIZE 512
 
 
-struct http_rsp_hdr{
+struct http_rsp_hdr
+{
     uint16_t status;
 };
 
-size_t response_handler(char*,struct http_req_hdr*);
+size_t response_handler(char *, struct http_req_hdr *);
+void get_filetype(char *filename, char *filetype);
 
 #endif //C_SERVER_RESPONSE_H
