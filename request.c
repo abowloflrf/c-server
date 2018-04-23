@@ -7,10 +7,8 @@
 #include "request.h"
 
 
-struct http_req_hdr *request_handler(char *request_header, int len)
+void request_handler(struct http_req_hdr *header,char *request_header, int len)
 {
-    struct http_req_hdr *header;
-    header = (struct http_req_hdr *) malloc(sizeof(header));
 
     header->method = HTTP_METHOD_UNKNOWN;
     header->accept_type = "text/plain";
@@ -45,7 +43,6 @@ struct http_req_hdr *request_handler(char *request_header, int len)
         index++;
     }
     //TODO: post body的解析
-    return header;
 };
 
 void parse_request_method(struct http_req_hdr *header, char *line)

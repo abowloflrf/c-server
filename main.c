@@ -56,6 +56,13 @@ int main(int argc, char *argv[])
     skaddr.sin_port = htons((uint16_t) port);   //8888
     skaddr.sin_addr.s_addr = inet_addr(SERV);   //0.0.0.0
 
+    int tr = 1;
+    // 防止出现 "Address already in use" ，取消关闭socket时端口保留等待时间
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &tr, sizeof(int)) == -1) {
+        perror("setsockopt");
+        exit(1);
+    }
+
     // bind，绑定 socket 和 sockaddr_in
     if (bind(sockfd, (struct sockaddr *) &skaddr, sizeof(skaddr)) == -1) {
         perror("bind error");
@@ -80,12 +87,12 @@ int main(int argc, char *argv[])
             perror("accept error");
             exit(1);
         }
-        memset(buff, 0, sizeof(buff));
         int len = (int) recv(sock_client, buff, sizeof(buff), 0);
         //request_handler解析请求头部并返回一个简单的请求结构体
-        struct http_req_hdr *req_hdr = request_handler(buff, len);
+        struct http_req_hdr req_hdr;
+        request_handler(&req_hdr, buff, len);
         //TODO: 实现HTTP request parser来响应不同的请求
-        http_send(sock_client, req_hdr);//发送HTTP response
+        http_send(sock_client, &req_hdr);//发送HTTP response
         close(sock_client);//response发送完毕，关闭客户端连接
     }
 }

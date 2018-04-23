@@ -19,6 +19,6 @@ struct http_req_hdr
     char *accept_type;
 };
 
-struct http_req_hdr *request_handler(char *, int);
-void parse_request_method(struct http_req_hdr *header, char *line);
+void request_handler(struct http_req_hdr *, char *, int);
+void parse_request_method(struct http_req_hdr *, char *);
 #endif //C_SERVER_REQUEST_H
