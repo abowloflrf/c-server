@@ -19,19 +19,6 @@
 #define QUEUE 20
 #define BUFF_SIZE 8192
 
-
-typedef struct doc_type
-{
-    char *key;
-    char *value;
-} HTTP_CONTENT_TYPE;
-
-HTTP_CONTENT_TYPE http_content_type[] = {
-    {"html", "text/html"},
-    {"gif", "image/gif"},
-    {"jpeg", "image/jpeg"}
-};
-
 int sockfd;
 
 void handle_signal(int sign); // 退出信号处理
@@ -88,12 +75,11 @@ int main(int argc, char *argv[])
             exit(1);
         }
         int len = (int) recv(sock_client, buff, sizeof(buff), 0);
-        //request_handler解析请求头部并返回一个简单的请求结构体
-        struct http_req_hdr req_hdr;
-        request_handler(&req_hdr, buff, len);
-        //TODO: 实现HTTP request parser来响应不同的请求
-        http_send(sock_client, &req_hdr);//发送HTTP response
-        close(sock_client);//response发送完毕，关闭客户端连接
+
+        struct http_req_hdr req_hdr;                //新建一个请求头部结构体
+        request_handler(&req_hdr, buff, len);       //request_handler解析请求头部并返回一个简单的请求结构体
+        http_send(sock_client, &req_hdr);           //发送HTTP response
+        close(sock_client);                         //response发送完毕，关闭客户端连接
     }
 }
 

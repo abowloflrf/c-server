@@ -12,12 +12,15 @@
 #define HTTP_STATUS_NOT_MODIFIED    304
 #define HTTP_STATUS_NOT_FOUND       404
 
-#define BODY_BUFF_SIZE 8192
 #define HEADER_BUFF_SIZE 512
 
 struct http_rsp_hdr
 {
     uint16_t status;
+    char *date;
+    char *last_modified;
+    char *content_type;
+    ssize_t content_length;
 };
 
 void response_handler(int, struct http_req_hdr *);
