@@ -10,14 +10,18 @@
 #include <sys/stat.h>   //文件信息
 #include <unistd.h>
 #include <errno.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include "request.h"
 #include "response.h"
 #include "log.h"
+#include "fcgi.h"
+#include "io.h"
 
 void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
 {
     char *http_res_tmpl = "HTTP/1.1 %s\r\n"
-                          "Server: ruofeng's Server V1.0\r\n"
+                          "Server: ruofeng's Server\r\n"
                           "Accept-Ranges: bytes\r\n"
                           "Content-Length: %d\r\n"
                           "Content-Type: %s\r\n\r\n";
@@ -25,6 +29,8 @@ void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
     char filetype[20];
     char filename[256] = "../dist";         //HTML文档指定目录
     struct stat sbuf;
+    rio_t rio;
+    rio_readinitb(&rio, socket_fd);
 
     strcat(filename, req_hdr->uri);         //根据URI拼接请求文档路径
     if (filename[strlen(filename) - 1] == '/') {
@@ -35,6 +41,7 @@ void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
         return;
     }
     else {
+        get_filetype(filename, filetype);           //获取文件类型
         size_t filesize = (size_t) sbuf.st_size;    //获取文件大小
         int file_fd = open(filename, O_RDONLY, 0);
         if (file_fd == -1) {            //文件打开失败返回404
@@ -47,11 +54,19 @@ void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
             return;
         }
         close(file_fd);                                                 //关闭文件流
-        get_filetype(filename, filetype);                               //获取文件类型
-        sprintf(res_hdr, http_res_tmpl, "200 OK", filesize, filetype);  //组合头部
-        write_to_socket(socket_fd, res_hdr, strlen(res_hdr));           //写入头部
-        write_to_socket(socket_fd, src_addr, filesize);                 //写入body
+        if (strcmp("script/php", filetype) == 0) {
+            int fpm_fd = open_fpm_sock();
+            send_fastcgi(&rio, req_hdr, fpm_fd);
+            recv_fastcgi(send_to_c, rio.rio_fd, fpm_fd);
+            close(fpm_fd);
+        }
+        else {
+            sprintf(res_hdr, http_res_tmpl, "200 OK", filesize, filetype);  //组合头部
+            rio_writen(socket_fd, res_hdr, strlen(res_hdr));                    //写入头部
+            rio_writen(socket_fd, src_addr, filesize);                        //写入body
+        }
     }
+
 }
 
 void get_filetype(char *filename, char *filetype)
@@ -77,6 +92,9 @@ void get_filetype(char *filename, char *filetype)
     else if (strstr(filename, ".svg")) {
         strcpy(filetype, "image/svg+xml");
     }
+    else if (strstr(filename, ".php")) {
+        strcpy(filetype, "script/php");
+    }
     else {
         strcpy(filetype, "text/plain");
     }
@@ -85,7 +103,7 @@ void get_filetype(char *filename, char *filetype)
 void send_error_response(int socket_fd, char *status, char *msg)
 {
     char *http_res_tmpl = "HTTP/1.1 %s %s\r\n"
-                          "Server: ruofeng's Server V1.0\r\n"
+                          "Server: ruofeng's Server\r\n"
                           "Accept-Ranges: bytes\r\n"
                           "Content-Length: %d\r\n"
                           "Content-Type: %s\r\n\r\n";
@@ -93,26 +111,32 @@ void send_error_response(int socket_fd, char *status, char *msg)
     sprintf(body, "%s - %s", status, msg);
     sprintf(buf, http_res_tmpl, status, msg, strlen(body), "text/plain");
     strcat(buf, body);
-    write_to_socket(socket_fd, buf, strlen(buf));
+    rio_writen(socket_fd, buf, strlen(buf));
 }
 
-ssize_t write_to_socket(int fd, void *buf, size_t n)
+ssize_t send_to_c(int fd, size_t outlen, char *out, size_t errlen, char *err, FCGI_EndRequestBody *endr)
 {
-    size_t nleft = n; // 剩下的未写入字节数
-    ssize_t nwritten;
-    char *bufp = (char *) buf;
+    char *p;
+    int n;
+    char buf[BUFSIZ];
+    //TODO: 根据out定义不同的response header
+    char *http_res_tmpl = "HTTP/1.1 200 OK\r\n"
+                          "Server: ruofeng's Server\r\n"
+                          "Content-Length: %d\r\n"
+                          "Content-Type: %s\r\n\r\n";
 
-    while (nleft > 0) {
-        if ((nwritten = write(fd, bufp, nleft)) <= 0) {
-            if (errno == EINTR) { // 被信号处理函数中断返回
-                nwritten = 0;
-            }
-            else { // write函数出错
-                return -1;
-            }
-        }
-        nleft -= nwritten;
-        bufp += nwritten;
+    if (errlen == 0) {
+        p = index(out, '\r');
+        n = (int) (p - out);
+        sprintf(buf, http_res_tmpl, outlen - n - 4, "text/plain");
+        strncat(buf, p + 4, outlen - n - 4);
+        rio_writen(fd, buf, strlen(buf));
+        return strlen(buf);
     }
-    return n;
+    else {
+        sprintf(buf, http_res_tmpl, errlen, "text/plain");
+        rio_writen(fd, buf, strlen(buf));
+        rio_writen(fd, err, (size_t) errlen);
+        return errlen;
+    }
 }
