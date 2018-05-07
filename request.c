@@ -7,12 +7,11 @@
 #include "request.h"
 
 
-void request_handler(struct http_req_hdr *header,char *request_header, int len)
+void request_handler(struct http_req_hdr *header, char *request_header, int len)
 {
 
     header->method = HTTP_METHOD_UNKNOWN;
     header->accept_type = "text/plain";
-    header->host = "unkownlhost";
     header->uri = "/";
 
     //按照\r\n分割解析HTTP头部
@@ -21,6 +20,8 @@ void request_handler(struct http_req_hdr *header,char *request_header, int len)
     while (line != NULL) {
         if (index == 0) {
             parse_request_method(header, line);
+            parse_query_string(header);
+            parse_request_file(header);
             goto spilt;
         }
         //Host: Accpet:
@@ -60,4 +61,27 @@ void parse_request_method(struct http_req_hdr *header, char *line)
     }
     value = strsep(&line, " ");
     header->uri = value;
+}
+
+void parse_query_string(struct http_req_hdr *header)
+{
+    char *p = index(header->uri, '?');
+    if (p != 0) {
+        p++;
+        //int n = (int) (p - strlen(header->uri));
+        header->query_str = p;
+        //strncpy(header->query_str, p, strlen(p));
+    }
+}
+
+void parse_request_file(struct http_req_hdr *header)
+{
+    header->req_file = (char *) malloc(sizeof(char));
+    char path_buf[256];
+    sprintf(path_buf, "%s%s", ROOT_PATH, header->uri);
+    char *p = index(path_buf, '?');
+    if (p)
+        strncpy(header->req_file, path_buf, (size_t) (p - path_buf));   //有query string
+    else
+        strcpy(header->req_file, path_buf); //无 query string
 }

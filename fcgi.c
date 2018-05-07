@@ -97,6 +97,72 @@ int sendEndRequestRecord(int fd, int requestId)
     else
         return -1;
 }
+int makeNameValueBody(char *name, size_t nameLen, char *value, size_t valueLen,
+                      unsigned char *bodyBuffPtr, size_t *bodyLenPtr)
+{
+    unsigned char *startBodyBuffPtr = bodyBuffPtr;  //记录body的开始位置
+
+    if (nameLen < 128)//如果nameLen长度小于128字节
+    {
+        *bodyBuffPtr++ = (unsigned char) nameLen;
+    }
+    else {
+        //nameLen用4个字节保存
+        *bodyBuffPtr++ = (unsigned char) ((nameLen >> 24) | 0x80);
+        *bodyBuffPtr++ = (unsigned char) (nameLen >> 16);
+        *bodyBuffPtr++ = (unsigned char) (nameLen >> 8);
+        *bodyBuffPtr++ = (unsigned char) nameLen;
+    }
+
+    if (valueLen < 128)  //valueLen小于128就用一个字节保存
+    {
+        *bodyBuffPtr++ = (unsigned char) valueLen;
+    }
+    else {
+        //valueLen用4个字节保存
+        *bodyBuffPtr++ = (unsigned char) ((valueLen >> 24) | 0x80);
+        *bodyBuffPtr++ = (unsigned char) (valueLen >> 16);
+        *bodyBuffPtr++ = (unsigned char) (valueLen >> 8);
+        *bodyBuffPtr++ = (unsigned char) valueLen;
+    }
+    memcpy(bodyBuffPtr, name, nameLen);
+    bodyBuffPtr += nameLen;
+    memcpy(bodyBuffPtr, value, valueLen);
+    bodyBuffPtr += valueLen;
+
+    //计算出body的长度
+    *bodyLenPtr = bodyBuffPtr - startBodyBuffPtr;
+
+    return 1;
+}
+int sendParams(int fd, char *name, char *value)
+{
+    int requestId = fd;
+    unsigned char bodyBuff[1024];
+
+    bzero(bodyBuff, sizeof(bodyBuff));
+
+    size_t bodyLen;//保存body的长度
+
+    //生成PARAMS参数内容的body
+    makeNameValueBody(name, strlen(name), value, strlen(value), bodyBuff, &bodyLen);
+
+    FCGI_Header nameValueHeader;
+    nameValueHeader = makeHeader(FCGI_PARAMS, requestId, bodyLen, 0);
+
+    size_t nameValueRecordLen = bodyLen + FCGI_HEADER_LEN;
+    char nameValueRecord[nameValueRecordLen];
+
+    //将头和body拷贝到一块buffer中只需调用一次write
+    memcpy(nameValueRecord, (char *) &nameValueHeader, FCGI_HEADER_LEN);
+    memcpy(nameValueRecord + FCGI_HEADER_LEN, bodyBuff, bodyLen);
+
+    ssize_t ret = rio_writen(fd, nameValueRecord, nameValueRecordLen);
+    if (ret == nameValueRecordLen)
+        return 1;
+    else
+        return -1;
+}
 
 int sendParamsRecord(int fd, char *name, size_t nlen, char *value, size_t vlen)
 {
@@ -110,9 +176,11 @@ int sendParamsRecord(int fd, char *name, size_t nlen, char *value, size_t vlen)
     pl = (cl % 8) == 0 ? 0 : 8 - (cl % 8);
     old = buf = (unsigned char *) malloc(FCGI_HEADER_LEN + cl + pl);
 
-    FCGI_Header nvHeader = makeHeader(FCGI_PARAMS, requestId, cl, pl);
+
+    FCGI_Header nvHeader = makeHeader(FCGI_PARAMS, requestId, cl, 0);
     memcpy(buf, (char *) &nvHeader, FCGI_HEADER_LEN);
     buf = buf + FCGI_HEADER_LEN;
+
 
     if (nlen < 128) { // name长度小于128字节，用一个字节保存长度
         *buf++ = (unsigned char) nlen;
@@ -229,13 +297,42 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
     }
 
     char *n1 = "SCRIPT_FILENAME";
-    char *v1 = "/home/ruofeng/Code/c-server/dist/info.php";
-    sendParamsRecord(sock, n1, strlen(n1), v1, strlen(v1));
-    char *n2 = "REQUEST_METHOD";
-    char *v2 = "GET";
-    sendParamsRecord(sock, n2, strlen(n2), v2, strlen(v2));
+    //sendParamsRecord(sock, n1, strlen(n1), hdr->req_file, strlen(hdr->req_file));
+    sendParams(sock, n1, hdr->req_file);
 
-    //sendEmptyParamsRecord(sock);
+    char *n2 = "REQUEST_METHOD";
+    char *v2;
+    switch (hdr->method) {
+    case HTTP_METHOD_HEAD:v2 = "HEAD";
+        break;
+    case HTTP_METHOD_GET:v2 = "GET";
+        break;
+    case HTTP_METHOD_POST:v2 = "POST";
+        break;
+    default:v2 = "GET";
+    }
+    //sendParamsRecord(sock, n2, strlen(n2), v2, strlen(v2));
+    sendParams(sock, n2, v2);
+
+    if (hdr->query_str != NULL) {
+        sendParams(sock, "QUERY_STRING", hdr->query_str);
+    }
+
+    if (hdr->method == HTTP_METHOD_POST) {
+        sendParams(sock, "HTTP_CONTENT_TYPE", "application/x-www-form-urlencoded");
+        sendParams(sock, "HTTP_CONTENT_LENGTH", "7");
+        sendParams(sock, "CONTENT_TYPE", "application/x-www-form-urlencoded");
+        sendParams(sock, "CONTENT_LENGTH", "7");
+    }
+
+    //发送空的Params表示属性传递结束
+    sendEmptyParamsRecord(sock);
+
+    //发送POST数据 STDIN
+    if (hdr->method == HTTP_METHOD_POST)
+        sendStdinRecord(sock, "abc=123", 7);
+
+    //发送结束Record
     if (sendEndRequestRecord(sock, requestId) < 0) {
         fprintf(stderr, "sendEndRequestRecord error");
         return -1;
@@ -263,18 +360,14 @@ int recv_fastcgi(send_to_client stc, int cfd, int fd)
         if (responHeader.type == FCGI_STDOUT && fcgi_rid == requestId) {
             // 获取内容长度
             cl = (responHeader.contentLengthB1 << 8) + (responHeader.contentLengthB0);
-            //*outlen += cl;
             outlen += cl;
 
             // 如果不是第一次读取FCGI_STDOUT记录
             if (conBuf != NULL) {
-                // 扩展空间
-                //conBuf = realloc(*sout, *outlen);
                 conBuf = realloc(conBuf, outlen);
             }
             else {
                 conBuf = (char *) malloc(cl);
-                //*sout = conBuf;
             }
 
             ret = rio_readn(fd, conBuf, cl);
@@ -326,14 +419,14 @@ int recv_fastcgi(send_to_client stc, int cfd, int fd)
             ret = rio_readn(fd, &endr, sizeof(FCGI_EndRequestBody));
 
             if (ret == -1 || ret != sizeof(FCGI_EndRequestBody)) {
-                free(conBuf);
-                free(errBuf);
+//                free(conBuf);
+//                free(errBuf);
                 return -1;
             }
 
             stc(cfd, outlen, conBuf, errlen, errBuf, &endr);
-            free(conBuf);
-            free(errBuf);
+//            free(conBuf);
+//            free(errBuf);
             return 0;
         }
     }

@@ -150,7 +150,10 @@ int sendBeginRequestRecord(int fd, int requestId);
 int sendEndRequestRecord(int fd, int requestId);
 
 ///发送名值对参数
+int makeNameValueBody(char *name, size_t nameLen, char *value, size_t valueLen,
+                      unsigned char *bodyBuffPtr, size_t *bodyLenPtr);
 int sendParamsRecord(int fd, char *name, size_t nlen, char *value, size_t vlen);
+int sendParams(int fd,char *name,char *value);
 
 /// 发送空的params记录
 int sendEmptyParamsRecord(int fd);

@@ -27,13 +27,14 @@ void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
                           "Content-Type: %s\r\n\r\n";
     char res_hdr[HEADER_BUFF_SIZE];
     char filetype[20];
-    char filename[256] = "../dist";         //HTML文档指定目录
+    char *filename = req_hdr->req_file;
+
     struct stat sbuf;
     rio_t rio;
     rio_readinitb(&rio, socket_fd);
 
-    strcat(filename, req_hdr->uri);         //根据URI拼接请求文档路径
-    if (filename[strlen(filename) - 1] == '/') {
+    //strcat(filename, req_hdr->uri);
+    if (req_hdr->uri[strlen(req_hdr->uri) - 1] == '/') {
         strcat(filename, "index.html");     //默认文档index.html
     }
     if (stat(filename, &sbuf) != 0) {       //文件打开失败返回404
@@ -120,7 +121,7 @@ ssize_t send_to_c(int fd, size_t outlen, char *out, size_t errlen, char *err, FC
     int n;
     char buf[BUFSIZ];
     //TODO: 根据out定义不同的response header
-    char *http_res_tmpl = "HTTP/1.1 200 OK\r\n"
+    char *http_res_tmpl = "HTTP/1.1 %s %s\r\n"
                           "Server: ruofeng's Server\r\n"
                           "Content-Length: %d\r\n"
                           "Content-Type: %s\r\n\r\n";
@@ -128,13 +129,13 @@ ssize_t send_to_c(int fd, size_t outlen, char *out, size_t errlen, char *err, FC
     if (errlen == 0) {
         p = index(out, '\r');
         n = (int) (p - out);
-        sprintf(buf, http_res_tmpl, outlen - n - 4, "text/plain");
+        sprintf(buf, http_res_tmpl, "200", "OK", outlen - n - 4, "text/html");
         strncat(buf, p + 4, outlen - n - 4);
         rio_writen(fd, buf, strlen(buf));
         return strlen(buf);
     }
     else {
-        sprintf(buf, http_res_tmpl, errlen, "text/plain");
+        sprintf(buf, http_res_tmpl, "500", "Internal Server Error", errlen, "text/plain");
         rio_writen(fd, buf, strlen(buf));
         rio_writen(fd, err, (size_t) errlen);
         return errlen;
