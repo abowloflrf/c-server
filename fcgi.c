@@ -331,8 +331,10 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
     sendEmptyParamsRecord(sock);
 
     //发送POST数据 STDIN
-    if (hdr->method == HTTP_METHOD_POST)
+    if (hdr->method == HTTP_METHOD_POST) {
         sendStdinRecord(sock, hdr->req_body, hdr->content_length);
+        sendEmptyStdinRecord(sock);
+    }
 
     //发送结束Record
     if (sendEndRequestRecord(sock, requestId) < 0) {

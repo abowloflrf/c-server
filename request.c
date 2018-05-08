@@ -16,6 +16,7 @@ void request_handler(struct http_req_hdr *header, char *request_header, int len)
 
     //按照\r\n分割解析HTTP头部
     char *line = strsep(&request_header, "\r\n");
+    request_header++;
     int index = 0;
     while (line != NULL) {
         if (index == 0) {
@@ -24,44 +25,42 @@ void request_handler(struct http_req_hdr *header, char *request_header, int len)
             parse_request_file(header);             //解析请求文件（去除QueryString后内容）
             goto spilt;
         }
-        char *value = strsep(&line, " ");
 
-        //Host: Accpet:
-        if (strncmp(value, "Host:", 5) == 0) {
-            value = strsep(&line, " ");
-            header->host = value;
+        if (strncmp(line, "Host:", 5) == 0) {
+            strsep(&line, " ");
+            header->host = line;
             goto spilt;
         }
 
-        if (strncmp(value, "Accept:", 7) == 0) {
-            value = strsep(&line, " ");
-            header->accept_type = value;
+        if (strncmp(line, "Accept:", 7) == 0) {
+            strsep(&line, " ");
+            header->accept_type = line;
             goto spilt;
         }
 
-        if (strncmp(value, "Content-Length:", 15) == 0) {
-            value = strsep(&line, " ");
-            header->content_length = (unsigned int) atoi(value);
+        if (strncmp(line, "Content-Length:", 15) == 0) {
+            strsep(&line, " ");
+            header->content_length = (unsigned int) atoi(line);
             goto spilt;
         }
 
-        if (strncmp(value, "Content-Type:", 13) == 0) {
-            value = strsep(&line, " ");
-            header->content_type = value;
+        if (strncmp(line, "Content-Type:", 13) == 0) {
+            strsep(&line, " ");
+            header->content_type = line;
             goto spilt;
         }
 
         spilt:
-        if (strncmp(request_header, "\n\r\n", 3) == 0) {
-            request_header += 3;
+        line = strsep(&request_header, "\r\n");
+        request_header++;
+        index++;
+        if (strncmp(request_header, "\r\n", 2) == 0) {
+            request_header += 2;
             line = request_header;
             header->req_body = line;
             break;
         }
-        line = strsep(&request_header, "\r\n");
-        index++;
     }
-    //TODO: post body的解析
 };
 
 void parse_request_method(struct http_req_hdr *header, char *line)
