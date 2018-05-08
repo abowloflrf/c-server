@@ -130,9 +130,17 @@ typedef struct
 int open_fpm_sock();
 
 /// 构造FastCGI请求头部
+/// \param type
+/// \param requestId
+/// \param contentLength
+/// \param paddingLength
+/// \return
 FCGI_Header makeHeader(int type, int requestId, size_t contentLength, size_t paddingLength);
 
 /// 构造FastCGI开始请求体
+/// \param role
+/// \param keepConn
+/// \return
 FCGI_BeginRequestBody makeBeginRequestBody(int role, int keepConn);
 
 /// 发送开始请求记录
@@ -149,16 +157,39 @@ int sendBeginRequestRecord(int fd, int requestId);
 /// \return
 int sendEndRequestRecord(int fd, int requestId);
 
-///发送名值对参数
+///
+/// \param name
+/// \param nameLen
+/// \param value
+/// \param valueLen
+/// \param bodyBuffPtr
+/// \param bodyLenPtr
+/// \return
 int makeNameValueBody(char *name, size_t nameLen, char *value, size_t valueLen,
                       unsigned char *bodyBuffPtr, size_t *bodyLenPtr);
-int sendParamsRecord(int fd, char *name, size_t nlen, char *value, size_t vlen);
-int sendParams(int fd,char *name,char *value);
+
+/// 发送参数
+/// \param fd
+/// \param name
+/// \param value
+/// \return
+int sendParamsRecord(int fd, char *name, char *value);
 
 /// 发送空的params记录
+/// \param fd
+/// \return
 int sendEmptyParamsRecord(int fd);
 
+/// 发送标准输入记录
+/// \param fd
+/// \param data 输入数据
+/// \param len 输入数据长度
+/// \return
 int sendStdinRecord(int fd, char *data, int len);
+
+/// 发送标准输入结束记录
+/// \param fd
+/// \return
 int sendEmptyStdinRecord(int fd);
 
 /// 向php-fpm发送FastCGI请求
@@ -175,10 +206,6 @@ typedef ssize_t (*send_to_client)(int, size_t, char *, size_t, char *, FCGI_EndR
 /// \param fd  php-fpm的socket
 /// \return
 int recv_fastcgi(send_to_client stc, int cfd, int fd);
-
-
-//sendStdinRecord
-//sendEmptyStdinRecord
 
 
 #endif //C_SERVER_FCGI_H

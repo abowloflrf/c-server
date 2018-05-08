@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     //TODO: 从config file中读取配置
     uint16_t port = 8888;
     if (argc > 1) {
-        port = (uint16_t) atoi(argv[1]);//TODO: uint16
+        port = (uint16_t) atoi(argv[1]);
     }
 
     signal(SIGINT, handle_signal);  //处理中断退出信号

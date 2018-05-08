@@ -135,7 +135,7 @@ int makeNameValueBody(char *name, size_t nameLen, char *value, size_t valueLen,
 
     return 1;
 }
-int sendParams(int fd, char *name, char *value)
+int sendParamsRecord(int fd, char *name, char *value)
 {
     int requestId = fd;
     unsigned char bodyBuff[1024];
@@ -162,60 +162,6 @@ int sendParams(int fd, char *name, char *value)
         return 1;
     else
         return -1;
-}
-
-int sendParamsRecord(int fd, char *name, size_t nlen, char *value, size_t vlen)
-{
-    int requestId = fd;
-    unsigned char *buf, *old;
-    size_t ret, pl, cl = nlen + vlen;
-    cl = (nlen < 128) ? ++cl : cl + 4;
-    cl = (vlen < 128) ? ++cl : cl + 4;
-
-    // 计算填充数据长度
-    pl = (cl % 8) == 0 ? 0 : 8 - (cl % 8);
-    old = buf = (unsigned char *) malloc(FCGI_HEADER_LEN + cl + pl);
-
-
-    FCGI_Header nvHeader = makeHeader(FCGI_PARAMS, requestId, cl, 0);
-    memcpy(buf, (char *) &nvHeader, FCGI_HEADER_LEN);
-    buf = buf + FCGI_HEADER_LEN;
-
-
-    if (nlen < 128) { // name长度小于128字节，用一个字节保存长度
-        *buf++ = (unsigned char) nlen;
-    }
-    else { // 大于等于128用4个字节保存长度
-        *buf++ = (unsigned char) ((nlen >> 24) | 0x80);
-        *buf++ = (unsigned char) (nlen >> 16);
-        *buf++ = (unsigned char) (nlen >> 8);
-        *buf++ = (unsigned char) nlen;
-    }
-
-    if (vlen < 128) { // value长度小于128字节，用一个字节保存长度
-        *buf++ = (unsigned char) vlen;
-    }
-    else { // 大于等于128用4个字节保存长度
-        *buf++ = (unsigned char) ((vlen >> 24) | 0x80);
-        *buf++ = (unsigned char) (vlen >> 16);
-        *buf++ = (unsigned char) (vlen >> 8);
-        *buf++ = (unsigned char) vlen;
-    }
-
-    memcpy(buf, name, nlen);
-    buf = buf + nlen;
-    memcpy(buf, value, vlen);
-
-    ret = (size_t) rio_writen(fd, old, FCGI_HEADER_LEN + cl + pl);
-
-    free(old);
-
-    if (ret == (FCGI_HEADER_LEN + cl + pl)) {
-        return 0;
-    }
-    else {
-        return -1;
-    }
 }
 
 int sendEmptyParamsRecord(int fd)
@@ -297,8 +243,7 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
     }
 
     char *n1 = "SCRIPT_FILENAME";
-    //sendParamsRecord(sock, n1, strlen(n1), hdr->req_file, strlen(hdr->req_file));
-    sendParams(sock, n1, hdr->req_file);
+    sendParamsRecord(sock, n1, hdr->req_file);
 
     char *n2 = "REQUEST_METHOD";
     char *v2;
@@ -311,20 +256,19 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
         break;
     default:v2 = "GET";
     }
-    //sendParamsRecord(sock, n2, strlen(n2), v2, strlen(v2));
-    sendParams(sock, n2, v2);
+    sendParamsRecord(sock, n2, v2);
 
     if (hdr->query_str != NULL) {
-        sendParams(sock, "QUERY_STRING", hdr->query_str);
+        sendParamsRecord(sock, "QUERY_STRING", hdr->query_str);
     }
 
     if (hdr->method == HTTP_METHOD_POST) {
         char conlen[20];
         sprintf(conlen, "%d", hdr->content_length);
-        sendParams(sock, "HTTP_CONTENT_TYPE", hdr->content_type);
-        sendParams(sock, "HTTP_CONTENT_LENGTH", conlen);
-        sendParams(sock, "CONTENT_TYPE", hdr->content_type);
-        sendParams(sock, "CONTENT_LENGTH", conlen);
+        sendParamsRecord(sock, "HTTP_CONTENT_TYPE", hdr->content_type);
+        sendParamsRecord(sock, "HTTP_CONTENT_LENGTH", conlen);
+        sendParamsRecord(sock, "CONTENT_TYPE", hdr->content_type);
+        sendParamsRecord(sock, "CONTENT_LENGTH", conlen);
     }
 
     //发送空的Params表示属性传递结束

@@ -119,7 +119,6 @@ ssize_t send_to_c(int fd, size_t outlen, char *out, size_t errlen, char *err, FC
     char *p;
     int n;
     char buf[BUFSIZ];
-    //TODO: 根据out定义不同的response header
     //200 "Content-type: text/html; charset=UTF-8\r\n\r\nhello from phper/dist"
     //302 "Status: 302 Found\r\nLocation: /\r\nContent-type: text/html; charset=UTF-8\r\n\r\n"
     //500 "Status: 500 Internal Server Error\r\nContent-type: text/html; charset=UTF-8\r\n\r\n"
