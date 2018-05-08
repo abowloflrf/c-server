@@ -21,7 +21,8 @@ struct http_req_hdr
     char *req_file;     //请求文件完整路径
     char *query_str;    //请求query string，不带问号
     char *content_type;
-    char *content_length;
+    unsigned int content_length;
+    char *req_body;
 
 };
 

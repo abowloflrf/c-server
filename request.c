@@ -19,14 +19,14 @@ void request_handler(struct http_req_hdr *header, char *request_header, int len)
     int index = 0;
     while (line != NULL) {
         if (index == 0) {
-            parse_request_method(header, line);
-            parse_query_string(header);
-            parse_request_file(header);
+            parse_request_method(header, line);     //解析请求方法
+            parse_query_string(header);             //解析QueryString
+            parse_request_file(header);             //解析请求文件（去除QueryString后内容）
             goto spilt;
         }
-        //Host: Accpet:
         char *value = strsep(&line, " ");
 
+        //Host: Accpet:
         if (strncmp(value, "Host:", 5) == 0) {
             value = strsep(&line, " ");
             header->host = value;
@@ -39,7 +39,25 @@ void request_handler(struct http_req_hdr *header, char *request_header, int len)
             goto spilt;
         }
 
+        if (strncmp(value, "Content-Length:", 15) == 0) {
+            value = strsep(&line, " ");
+            header->content_length = (unsigned int) atoi(value);
+            goto spilt;
+        }
+
+        if (strncmp(value, "Content-Type:", 13) == 0) {
+            value = strsep(&line, " ");
+            header->content_type = value;
+            goto spilt;
+        }
+
         spilt:
+        if (strncmp(request_header, "\n\r\n", 3) == 0) {
+            request_header += 3;
+            line = request_header;
+            header->req_body = line;
+            break;
+        }
         line = strsep(&request_header, "\r\n");
         index++;
     }
@@ -68,9 +86,7 @@ void parse_query_string(struct http_req_hdr *header)
     char *p = index(header->uri, '?');
     if (p != 0) {
         p++;
-        //int n = (int) (p - strlen(header->uri));
         header->query_str = p;
-        //strncpy(header->query_str, p, strlen(p));
     }
 }
 
@@ -83,5 +99,5 @@ void parse_request_file(struct http_req_hdr *header)
     if (p)
         strncpy(header->req_file, path_buf, (size_t) (p - path_buf));   //有query string
     else
-        strcpy(header->req_file, path_buf); //无 query string
+        strcpy(header->req_file, path_buf);                             //无 query string
 }

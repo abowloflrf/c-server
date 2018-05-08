@@ -319,10 +319,12 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
     }
 
     if (hdr->method == HTTP_METHOD_POST) {
-        sendParams(sock, "HTTP_CONTENT_TYPE", "application/x-www-form-urlencoded");
-        sendParams(sock, "HTTP_CONTENT_LENGTH", "7");
-        sendParams(sock, "CONTENT_TYPE", "application/x-www-form-urlencoded");
-        sendParams(sock, "CONTENT_LENGTH", "7");
+        char conlen[20];
+        sprintf(conlen, "%d", hdr->content_length);
+        sendParams(sock, "HTTP_CONTENT_TYPE", hdr->content_type);
+        sendParams(sock, "HTTP_CONTENT_LENGTH", conlen);
+        sendParams(sock, "CONTENT_TYPE", hdr->content_type);
+        sendParams(sock, "CONTENT_LENGTH", conlen);
     }
 
     //发送空的Params表示属性传递结束
@@ -330,7 +332,7 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
 
     //发送POST数据 STDIN
     if (hdr->method == HTTP_METHOD_POST)
-        sendStdinRecord(sock, "abc=123", 7);
+        sendStdinRecord(sock, hdr->req_body, hdr->content_length);
 
     //发送结束Record
     if (sendEndRequestRecord(sock, requestId) < 0) {
