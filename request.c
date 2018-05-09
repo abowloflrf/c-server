@@ -10,9 +10,8 @@
 void request_handler(struct http_req_hdr *header, char *request_header, int len)
 {
 
-    header->method = HTTP_METHOD_UNKNOWN;
-    header->accept_type = "text/plain";
-    header->uri = "/";
+    init_request(header);
+
 
     //按照\r\n分割解析HTTP头部
     char *line = strsep(&request_header, "\r\n");
@@ -91,7 +90,6 @@ void parse_query_string(struct http_req_hdr *header)
 
 void parse_request_file(struct http_req_hdr *header)
 {
-    header->req_file = (char *) malloc(sizeof(char));
     char path_buf[256];
     sprintf(path_buf, "%s%s", ROOT_PATH, header->uri);
     char *p = index(path_buf, '?');
@@ -99,4 +97,11 @@ void parse_request_file(struct http_req_hdr *header)
         strncpy(header->req_file, path_buf, (size_t) (p - path_buf));   //有query string
     else
         strcpy(header->req_file, path_buf);                             //无 query string
+}
+
+void init_request(struct http_req_hdr *header)
+{
+    header->method = HTTP_METHOD_UNKNOWN;
+    header->accept_type = "text/plain";
+    header->uri = "/";
 }

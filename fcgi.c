@@ -288,7 +288,7 @@ int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
     return 0;
 }
 
-int recv_fastcgi(send_to_client stc, int cfd, int fd)
+int recv_fastcgi(int cfd, int fd)
 {
     int requestId = fd;
 
@@ -300,10 +300,11 @@ int recv_fastcgi(send_to_client stc, int cfd, int fd)
     ssize_t ret;
     int fcgi_rid;  // 保存fpm发送过来的request id
 
-    size_t outlen = 0, errlen = 0;
+    size_t outlen = 0, errlen = 0, lastlen = 0;
 
     // 读取协议记录头部
     while (rio_readn(fd, &responHeader, FCGI_HEADER_LEN) > 0) {
+        lastlen = outlen;
         fcgi_rid = (int) (responHeader.requestIdB1 << 8) + (int) (responHeader.requestIdB0);
         if (responHeader.type == FCGI_STDOUT && fcgi_rid == requestId) {
             // 获取内容长度
@@ -312,14 +313,17 @@ int recv_fastcgi(send_to_client stc, int cfd, int fd)
 
             // 如果不是第一次读取FCGI_STDOUT记录
             if (conBuf != NULL) {
+                //free(conBuf);
+                //conBuf=malloc(outlen);
+                //FIXME: 分两次输出内容时会出错: realloc(): invalid next size
                 conBuf = realloc(conBuf, outlen);
             }
             else {
                 conBuf = (char *) malloc(cl);
             }
-
-            ret = rio_readn(fd, conBuf, cl);
-            if (ret == -1 || ret != cl) {
+            //ret=read(fd,conBuf,cl);
+            ret = rio_readn(fd, conBuf + lastlen, cl);    //从fpm中读取cl长度数据到conBuf中，返回的是读取的数据量
+            if (ret == -1 || ret != cl) {       //返回值异常，读取出错
                 printf("read fcgi_stdout record error\n");
                 return -1;
             }
@@ -334,50 +338,82 @@ int recv_fastcgi(send_to_client stc, int cfd, int fd)
             }
         }
         else if (responHeader.type == FCGI_STDERR && fcgi_rid == requestId) {
-            // 获取内容长度
             cl = (responHeader.contentLengthB1 << 8) + (responHeader.contentLengthB0);
-            //*errlen += cl;
             errlen += cl;
-
-            // 如果不是第一次读取FCGI_STDOUT记录
-            if (errBuf != NULL) {
-                // 扩展空间
+            if (errBuf != NULL)
                 errBuf = realloc(errBuf, errlen);
-            }
-            else {
+            else
                 errBuf = (char *) malloc(cl);
-                //*serr = errBuf;
-            }
-
             ret = rio_readn(fd, errBuf, cl);
-            if (ret == -1 || ret != cl) {
+            if (ret == -1 || ret != cl)
                 return -1;
-            }
-
-            // 读取填充内容，忽略
             if (responHeader.paddingLength > 0) {
                 ret = rio_readn(fd, buf, responHeader.paddingLength);
-                if (ret == -1 || ret != responHeader.paddingLength) {
+                if (ret == -1 || ret != responHeader.paddingLength)
                     return -1;
-                }
             }
         }
         else if (responHeader.type == FCGI_END_REQUEST && fcgi_rid == requestId) {
-            // 读取结束请求协议体
             ret = rio_readn(fd, &endr, sizeof(FCGI_EndRequestBody));
-
             if (ret == -1 || ret != sizeof(FCGI_EndRequestBody)) {
-//                free(conBuf);
-//                free(errBuf);
+                free(conBuf);
+                free(errBuf);
                 return -1;
             }
-
-            stc(cfd, outlen, conBuf, errlen, errBuf, &endr);
-//            free(conBuf);
-//            free(errBuf);
+            send_to_client(cfd, outlen, conBuf, errlen, errBuf);    //将buf内容输出到客户端socket
+            free(conBuf);   //FIXME: PHP输出内容过长，但是仍然只是一次TCP传输的数据在这里free会出错free(): invalid next size (normal)
+            free(errBuf);
             return 0;
         }
     }
     return 0;
 };
 
+ssize_t send_to_client(int fd, size_t outlen, char *out, size_t errlen, char *err)
+{
+    char *p;
+    int n;
+    char buf[BUFSIZ];
+    //200 "Content-type: text/html; charset=UTF-8\r\n\r\nhello from phper/dist"
+    //302 "Status: 302 Found\r\nLocation: /\r\nContent-type: text/html; charset=UTF-8\r\n\r\n"
+    //500 "Status: 500 Internal Server Error\r\nContent-type: text/html; charset=UTF-8\r\n\r\n"
+    char *http_res_tmpl = "HTTP/1.1 %s %s\r\n"
+                          "Server: ruofeng's Server\r\n"
+                          "Content-Length: %d\r\n"
+                          "Content-Type: %s\r\n\r\n";
+
+    if (strncmp(out, "Status:", 7) == 0) {
+        char status[3];             //保存状态码
+        char status_str[30];        //保存状态说明字符串
+        char response_type[50];     //保存内容类型
+        char *line = strsep(&out, "\r\n");
+        out++;
+        while (line != NULL) {
+            //直接跳出不再解析响应头部
+            if (strncmp(line, "\0", 1) == 0)
+                break;
+            //解析状态码与状态说明字符串
+            if (strncmp(line, "Status:", 7) == 0) {
+                strncpy(status, line + 8, 3);
+                strcpy(status_str, line + 12);
+            }
+            if (strncmp(line, "Content-type:", 13) == 0) {
+                strcpy(response_type, line + 14);
+            }
+            line = strsep(&out, "\r\n");
+            out++;
+        }
+        sprintf(buf, http_res_tmpl, status, status_str, errlen, response_type);
+        rio_writen(fd, buf, strlen(buf));
+        rio_writen(fd, err, errlen);
+        return errlen;
+    }
+
+    //开头未输出状态码则默认为200
+    p = index(out, '\r');
+    n = (int) (p - out);
+    sprintf(buf, http_res_tmpl, "200", "OK", outlen - n - 4, "text/html");
+    rio_writen(fd, buf, strlen(buf));
+    rio_writen(fd, p + 4, outlen - n - 4);
+    return outlen;
+}

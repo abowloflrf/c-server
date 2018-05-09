@@ -199,13 +199,20 @@ int sendEmptyStdinRecord(int fd);
 /// \return
 int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock);
 
-typedef ssize_t (*send_to_client)(int, size_t, char *, size_t, char *, FCGI_EndRequestBody *);
+/// 将fpm解析后的数据输出到客户端
+/// \param fd
+/// \param outlen
+/// \param out
+/// \param errlen
+/// \param err
+/// \return
+ssize_t send_to_client(int fd, size_t outlen, char *out, size_t errlen, char *err);
 
 /// 从php-fpm接受FastCGI响应
 /// \param cfd 客户端的socket
 /// \param fd  php-fpm的socket
 /// \return
-int recv_fastcgi(send_to_client stc, int cfd, int fd);
+int recv_fastcgi(int cfd, int fd);
 
 
 #endif //C_SERVER_FCGI_H

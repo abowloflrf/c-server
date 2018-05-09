@@ -14,16 +14,13 @@ ssize_t rio_readn(int fd, void *usrbuf, size_t n)
 
     while (nleft > 0) {
         if ((nread = read(fd, bufp, nleft)) < 0) {
-            if (errno == EINTR) { // 被信号处理函数中断返回
+            if (errno == EINTR)  // 被信号处理函数中断返回
                 nread = 0;
-            }
-            else {
+            else
                 return -1;  // read出错
-            }
         }
-        else if (nread == 0) { // EOF
+        else if (nread == 0)  // EOF
             break;
-        }
         nleft -= nread;
         bufp += nread;
     }
@@ -77,7 +74,7 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n)
 
     // 内部缓冲区为空，从缓冲区对应的描述符中继续读取字节填满内部缓冲区
     while (rp->rio_cnt <= 0) {
-        rp->rio_cnt =(size_t) read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf));
+        rp->rio_cnt = (size_t) read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf));
 
         if (rp->rio_cnt < 0) { // 返回-1
             if (errno != EINTR) {
@@ -115,7 +112,7 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen)
     char c, *bufp = usrbuf;
 
     for (n = 1; n < maxlen; n++) {
-        if ((rc = rio_read(rp, &c, 1)) == 1) {
+        if ((rc =(int) rio_read(rp, &c, 1)) == 1) {
             *bufp++ = c;
             if (c == '\n') { // 读完了一行
                 break;

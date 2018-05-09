@@ -18,7 +18,7 @@ struct http_req_hdr
     char *host;
     char *uri;
     char *accept_type;
-    char *req_file;     //请求文件完整路径
+    char req_file[256];     //请求文件完整路径
     char *query_str;    //请求query string，不带问号
     char *content_type;
     unsigned int content_length;
@@ -30,5 +30,7 @@ void request_handler(struct http_req_hdr *, char *, int);
 void parse_request_method(struct http_req_hdr *, char *);
 void parse_query_string(struct http_req_hdr *);
 void parse_request_file(struct http_req_hdr *);
+
+void init_request(struct http_req_hdr *);
 
 #endif //C_SERVER_REQUEST_H
