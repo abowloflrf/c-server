@@ -27,5 +27,4 @@ struct http_rsp_hdr
 void response_handler(int, struct http_req_hdr *);
 void get_filetype(char *filename, char *filetype);
 void send_error_response(int socket_fd, char *status, char *msg);
-ssize_t send_to_c(int fd, size_t outlen, char *out, size_t errlen, char *err, FCGI_EndRequestBody *endr);
 #endif //C_SERVER_RESPONSE_H

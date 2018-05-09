@@ -11,8 +11,6 @@ void request_handler(struct http_req_hdr *header, char *request_header, int len)
 {
 
     init_request(header);
-
-
     //按照\r\n分割解析HTTP头部
     char *line = strsep(&request_header, "\r\n");
     request_header++;
@@ -85,6 +83,9 @@ void parse_query_string(struct http_req_hdr *header)
     if (p != 0) {
         p++;
         header->query_str = p;
+    }
+    else {
+        header->query_str = "";
     }
 }
 
