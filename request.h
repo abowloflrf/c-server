@@ -10,7 +10,7 @@
 #define HTTP_METHOD_HEAD            0x0004
 #define HTTP_METHOD_POST            0x0008
 
-#define ROOT_PATH "/home/ruofeng/Code/c-server/dist"         //文档路径
+#define ROOT_PATH "/home/ruofeng/Dev/c-server/dist"         //文档路径
 
 struct http_req_hdr
 {

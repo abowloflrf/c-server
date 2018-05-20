@@ -56,8 +56,8 @@ void response_handler(int socket_fd, struct http_req_hdr *req_hdr)
         close(file_fd);                                                         //关闭文件流
         if (strcmp("script/php", filetype) == 0) {
             int fpm_fd = open_fpm_sock();                                       //打开php-fpm socket
-            send_fastcgi(&rio, req_hdr, fpm_fd);                                //解析请求到FastCGI标准并向socket发送
-            recv_fastcgi(rio.rio_fd, fpm_fd);                                   //从PHP接受解释完成的输出
+            send_fastcgi(req_hdr, fpm_fd);                                //解析请求到FastCGI标准并向socket发送
+            recv_fastcgi(socket_fd, fpm_fd);                                   //从PHP接受解释完成的输出
             close(fpm_fd);                                                      //关闭php-fpm socket
         }
         else {

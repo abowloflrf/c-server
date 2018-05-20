@@ -234,7 +234,7 @@ int sendEmptyStdinRecord(int fd)
     }
 }
 
-int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock)
+int send_fastcgi(struct http_req_hdr *hdr, int sock)
 {
     int requestId = sock;
     if (sendBeginRequestRecord(sock, requestId) < 0) {
@@ -313,9 +313,6 @@ int recv_fastcgi(int cfd, int fd)
 
             // 如果不是第一次读取FCGI_STDOUT记录
             if (conBuf != NULL) {
-                //free(conBuf);
-                //conBuf=malloc(outlen);
-                //FIXME: 分两次输出内容时会出错: realloc(): invalid next size
                 conBuf = realloc(conBuf, outlen);
             }
             else {
@@ -361,7 +358,7 @@ int recv_fastcgi(int cfd, int fd)
                 return -1;
             }
             send_to_client(cfd, outlen, conBuf, errlen, errBuf);    //将buf内容输出到客户端socket
-            free(conBuf);   //FIXME: PHP输出内容过长，但是仍然只是一次TCP传输的数据在这里free会出错free(): invalid next size (normal)
+            free(conBuf);
             free(errBuf);
             return 0;
         }

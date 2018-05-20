@@ -197,7 +197,7 @@ int sendEmptyStdinRecord(int fd);
 /// \param hdr http请求头部
 /// \param sock fpm socket
 /// \return
-int send_fastcgi(rio_t *rp, struct http_req_hdr *hdr, int sock);
+int send_fastcgi(struct http_req_hdr *hdr, int sock);
 
 /// 将fpm解析后的数据输出到客户端
 /// \param fd
