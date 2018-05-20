@@ -29,7 +29,7 @@
         <?php var_dump($_POST); ?>
     </code>
 
-    <form action="/info.php" method="POST">
+    <form action="debug.php" method="POST">
         name:<input name="abc">
         <button type="submit">POST</button>
     <form>
